@@ -1,4 +1,5 @@
 import base64
+import re
 from urllib.parse import quote
 
 import httpx
@@ -19,6 +20,7 @@ DRIVE_MCP_URL = "https://drivemcp.googleapis.com/mcp/v1"
 
 GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me"
 MAX_PAGES = 5
+ADDRESS_RE = re.compile(r"[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}", re.IGNORECASE)
 
 
 class WorkspaceError(Exception):
@@ -37,6 +39,7 @@ class GoogleWorkspace:
         token_provider,
         http: httpx.Client,
         query: str,
+        sender: str = "",
     ):
         self.gmail = gmail
         self.calendar = calendar
@@ -45,6 +48,7 @@ class GoogleWorkspace:
         self._token = token_provider
         self._http = http
         self.query = query
+        self.sender = sender.strip().lower()
 
     def iter_inbox(self) -> list[str]:
         ids: list[str] = []
@@ -69,9 +73,12 @@ class GoogleWorkspace:
                     if not isinstance(message, dict):
                         continue
                     message_id = message.get("id")
-                    if isinstance(message_id, str) and message_id and message_id not in seen:
-                        seen.add(message_id)
-                        ids.append(message_id)
+                    if not isinstance(message_id, str) or not message_id or message_id in seen:
+                        continue
+                    if not _summary_is_allowed(message, self.sender):
+                        continue
+                    seen.add(message_id)
+                    ids.append(message_id)
             page_token = page.get("nextPageToken") if isinstance(page.get("nextPageToken"), str) else ""
             if not page_token:
                 break
@@ -139,6 +146,25 @@ class GoogleWorkspace:
     def close(self) -> None:
         for client in (self.gmail, self.calendar, self.drive, self.docs):
             client.close()
+
+
+def is_from_address(sender: str, address: str) -> bool:
+    expected = address.strip().lower()
+    if not expected:
+        return True
+    found = {match.lower() for match in ADDRESS_RE.findall(sender or "")}
+    if found:
+        return expected in found
+    return (sender or "").strip().lower() == expected
+
+
+def _summary_is_allowed(message: dict, sender: str) -> bool:
+    if not sender:
+        return True
+    raw = message.get("sender") or message.get("from") or ""
+    if not isinstance(raw, str) or not raw.strip():
+        return True
+    return is_from_address(raw, sender)
 
 
 def as_gmail_message(payload: dict, message_id: str) -> dict:

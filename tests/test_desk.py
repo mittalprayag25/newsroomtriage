@@ -1,5 +1,6 @@
 import base64
 import json
+import os
 import stat
 import unittest
 import zipfile
@@ -17,7 +18,7 @@ from app.job import run_once
 from app.mcp_client import StreamableHttpMcp, parse_mcp_body
 from app.memory import Memory, MemoryError
 from app.models import InboundEmail
-from app.settings import Settings
+from app.settings import Settings, load_dotenv
 from app.specialists import event_arguments
 from app.style import StyleError, load_house_style
 from app.triage import run_triage
@@ -375,7 +376,7 @@ class JobTests(unittest.TestCase):
                 return "https://docs.google.com/document/d/doc-release/edit"
 
         desk = Desk()
-        settings = Settings(mode="heuristic")
+        settings = Settings(mode="heuristic", gmail_from="")
         with TemporaryDirectory() as folder:
             memory = Memory(Path(folder) / "newsroom.sqlite")
             first = run_once(settings, desk, memory, ROOT / "house-style.md")
@@ -408,6 +409,60 @@ class JobTests(unittest.TestCase):
         self.assertEqual(event_call[1]["startTime"], "2026-11-07T15:00:00+08:00")
         self.assertEqual(len([call for call in desk.calls if call[0] == "create_event"]), 1)
 
+    def test_only_mark_is_acted_on(self) -> None:
+        interview = json.loads((ROOT / "fixtures" / "interview.json").read_text(encoding="utf-8"))
+        messages = {
+            "from-mark": {
+                "id": "from-mark",
+                "sender": "Mark <markcwm@sph.com.sg>",
+                "subject": interview["subject"],
+                "plaintextBody": interview["body"],
+                "attachments": [],
+            },
+            "from-someone-else": {
+                "id": "from-someone-else",
+                "sender": "press@mnd.gov.sg",
+                "subject": interview["subject"],
+                "plaintextBody": interview["body"],
+                "attachments": [],
+            },
+        }
+
+        class Desk:
+            def __init__(self) -> None:
+                self.calls: list[str] = []
+
+            def iter_inbox(self) -> list[str]:
+                return list(messages)
+
+            def get_message(self, message_id: str) -> dict:
+                return messages[message_id]
+
+            def create_event(self, arguments: dict) -> dict:
+                self.calls.append("create_event")
+                return {"id": "evt-mark"}
+
+            def create_document(self, title: str, text: str) -> str:
+                self.calls.append("create_document")
+                return "https://docs.google.com/document/d/doc/edit"
+
+        desk = Desk()
+        settings = Settings(mode="heuristic")
+        with TemporaryDirectory() as folder:
+            memory = Memory(Path(folder) / "newsroom.sqlite")
+            report = run_once(settings, desk, memory, ROOT / "house-style.md")
+            stored = {row["messageId"]: row for row in report["recorded"]}
+            memory.close()
+        self.assertEqual(report["failures"], [])
+        self.assertEqual(stored["from-mark"]["eventId"], "evt-mark")
+        self.assertEqual(stored["from-someone-else"]["disposition"], "skip")
+        self.assertIsNone(stored["from-someone-else"]["eventId"])
+        self.assertEqual(desk.calls, ["create_event"])
+        self.assertEqual(
+            settings.search_query(),
+            "in:inbox newer_than:2d from:markcwm@sph.com.sg",
+        )
+
     def test_calendar_event_does_not_invite_guests(self) -> None:
         email = email_from_gmail(
             {
@@ -422,6 +477,49 @@ class JobTests(unittest.TestCase):
         self.assertEqual(arguments["notificationLevel"], "NONE")
         self.assertNotIn("attendees", arguments)
         self.assertEqual(arguments["location"], "Parliament House")
+
+
+class EnvFileTests(unittest.TestCase):
+    def test_dotenv_fills_missing_names_and_from_env_reads_them(self) -> None:
+        keys = (
+            "GOOGLE_OAUTH_CLIENT_ID",
+            "GOOGLE_OAUTH_CLIENT_SECRET",
+            "GOOGLE_OAUTH_REDIRECT_URI",
+            "ALREADY_SET",
+        )
+        saved = {key: os.environ.get(key) for key in keys}
+        for key in keys:
+            os.environ.pop(key, None)
+        os.environ["ALREADY_SET"] = "from-shell"
+        try:
+            with TemporaryDirectory() as folder:
+                path = Path(folder) / ".env"
+                path.write_text(
+                    "# comment\n"
+                    "export GOOGLE_OAUTH_CLIENT_ID=client-1\n"
+                    'GOOGLE_OAUTH_CLIENT_SECRET="secret-1"\n'
+                    "GOOGLE_OAUTH_REDIRECT_URI=http://127.0.0.1:8765/oauth/callback\n"
+                    "ALREADY_SET=from-file\n",
+                    encoding="utf-8",
+                )
+                load_dotenv(path)
+                self.assertEqual(os.environ["GOOGLE_OAUTH_CLIENT_ID"], "client-1")
+                self.assertEqual(os.environ["ALREADY_SET"], "from-shell")
+                for key in ("GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET"):
+                    os.environ.pop(key, None)
+                settings = Settings.from_env(path)
+            self.assertEqual(settings.google_client_id, "client-1")
+            self.assertEqual(settings.google_client_secret, "secret-1")
+            self.assertEqual(settings.oauth_redirect_uri, "http://127.0.0.1:8765/oauth/callback")
+        finally:
+            for key, value in saved.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+
+    def test_missing_dotenv_is_ignored(self) -> None:
+        load_dotenv(Path("/tmp/st-newsroom-agent-missing.env"))
 
 
 class TokenFileTests(unittest.TestCase):

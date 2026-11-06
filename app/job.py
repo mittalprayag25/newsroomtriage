@@ -20,6 +20,7 @@ from app.workspace import (
     GMAIL_MCP_URL,
     GoogleWorkspace,
     email_from_gmail,
+    is_from_address,
 )
 
 
@@ -36,33 +37,46 @@ def run_once(settings: Settings, workspace: GoogleWorkspace, memory: Memory, sty
             continue
         try:
             message = workspace.get_message(message_id)
-            email = email_from_gmail(message)
-            decision = run_triage(email, settings)
-            result = handle_message(
-                email,
-                message,
-                decision,
-                settings,
-                workspace,
-                style_path,
-            )
-            memory.record(
-                message_id=message_id,
-                route=result.route,
-                disposition=result.disposition,
-                event_id=result.event_id,
-                doc_link=result.doc_link,
-            )
+            sender = message.get("sender") or message.get("from") or ""
+            if not isinstance(sender, str):
+                sender = ""
+            if settings.gmail_from and not is_from_address(sender, settings.gmail_from):
+                memory.record(message_id, "ignore", "skip")
+                result_route, result_disposition = "ignore", "skip"
+                result_event_id = None
+                result_doc_link = None
+            else:
+                email = email_from_gmail(message)
+                decision = run_triage(email, settings)
+                result = handle_message(
+                    email,
+                    message,
+                    decision,
+                    settings,
+                    workspace,
+                    style_path,
+                )
+                memory.record(
+                    message_id=message_id,
+                    route=result.route,
+                    disposition=result.disposition,
+                    event_id=result.event_id,
+                    doc_link=result.doc_link,
+                )
+                result_route = result.route
+                result_disposition = result.disposition
+                result_event_id = result.event_id
+                result_doc_link = result.doc_link
         except Exception as exc:
             report["failures"].append(f"{message_id}: {exc}")
             continue
         report["recorded"].append(
             {
                 "messageId": message_id,
-                "route": result.route,
-                "disposition": result.disposition,
-                "eventId": result.event_id,
-                "docLink": result.doc_link,
+                "route": result_route,
+                "disposition": result_disposition,
+                "eventId": result_event_id,
+                "docLink": result_doc_link,
             }
         )
     return report
@@ -86,7 +100,8 @@ def open_workspace(settings: Settings) -> tuple[GoogleWorkspace, GoogleAuth, htt
         docs=StreamableHttpMcp(DOCS_MCP_URL, token, http),
         token_provider=token,
         http=http,
-        query=settings.gmail_query,
+        query=settings.search_query(),
+        sender=settings.gmail_from,
     )
     return workspace, auth, http
 

@@ -86,7 +86,9 @@ Or in Docker, after `python -m app.auth` has written `data/google-token.json`:
 docker compose --profile job up
 ```
 
-The inbox query defaults to `in:inbox newer_than:2d`. Change it with `GMAIL_QUERY`. Each handled message becomes one row in `data/newsroom.sqlite`: the Gmail message id, the route, and either the calendar event id or the doc link.
+The job reads Gmail as the signed-in user, but it only searches for mail from `markcwm@sph.com.sg`. The default search is `in:inbox newer_than:2d from:markcwm@sph.com.sg`. `GMAIL_QUERY` can change the mailbox window. It cannot remove the sender. A message from anyone else is stored as skip and is not booked or drafted.
+
+Each handled message becomes one row in `data/newsroom.sqlite`: the Gmail message id, the route, and either the calendar event id or the doc link.
 
 Calendar events are created on the signed-in user's primary calendar with `notificationLevel` set to `NONE`, so the job does not email guests. The sender is written in the event description.
 

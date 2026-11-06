@@ -74,7 +74,7 @@ class GoogleAuth:
     ):
         if not client_id or not client_secret:
             raise AuthError(
-                "Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET. "
+                "Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET in .env or the environment. "
                 "The OAuth client has to be marked for an AI-powered agent."
             )
         self.client_id = client_id
@@ -150,7 +150,7 @@ def save_refresh_token(path: Path, refresh_token: str, client_id: str) -> None:
 def login(client_id: str, client_secret: str, redirect_uri: str, token_path: Path) -> None:
     if not client_id or not client_secret:
         raise AuthError(
-            "Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET. "
+            "Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET in .env or the environment. "
             "In Google Auth Platform, create a Web application client, add this redirect URI, "
             "and select Use this client for an AI-powered agent."
         )
