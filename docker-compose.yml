@@ -1,0 +1,14 @@
+services:
+  triage:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      TRIAGE_MODE: ${TRIAGE_MODE:-auto}
+      TRIAGE_BASE_URL: ${TRIAGE_BASE_URL:-}
+      TRIAGE_API_KEY: ${TRIAGE_API_KEY:-}
+      TRIAGE_MODEL: ${TRIAGE_MODEL:-gpt-4o-mini}
+      FIXTURES_DIR: /app/fixtures
+      STATIC_DIR: /app/static
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

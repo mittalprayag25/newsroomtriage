@@ -1,0 +1,7 @@
+{
+  "messageId": "local-correction",
+  "from": "reader@example.com",
+  "subject": "Correction request on yesterday's MRT story",
+  "body": "Was the MRT delay figure in yesterday's story 40 minutes or 14? Please confirm before we reply to the reader.",
+  "attachmentNames": []
+}

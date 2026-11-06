@@ -1,0 +1,7 @@
+{
+  "messageId": "local-newsletter",
+  "from": "noreply@vendor.example",
+  "subject": "This week's media tools newsletter",
+  "body": "View in browser.\n\nSave 20% off our archive plan for a limited time.\n\nUnsubscribe from this newsletter.",
+  "attachmentNames": []
+}

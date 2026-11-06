@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Newsroom triage</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1c1917;
+      --muted: #57534e;
+      --line: #e7e5e4;
+      --paper: #fafaf9;
+      --panel: #ffffff;
+      --accent: #9f1239;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 16px/1.45 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      color: var(--ink);
+      background: var(--paper);
+    }
+    main {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 32px 20px 64px;
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin: 0 0 8px;
+    }
+    p.lead { margin: 0 0 24px; color: var(--muted); }
+    .samples { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+    button {
+      font: 14px/1.2 ui-sans-serif, system-ui, sans-serif;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+    label {
+      display: block;
+      font: 12px/1.2 ui-sans-serif, system-ui, sans-serif;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 12px 0 6px;
+    }
+    input, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font: 15px/1.4 ui-sans-serif, system-ui, sans-serif;
+    }
+    textarea { min-height: 180px; resize: vertical; }
+    input[type="file"] { padding: 8px; background: #f8fafc; }
+    .file-note {
+      margin: 6px 0 0;
+      font: 13px/1.4 ui-sans-serif, system-ui, sans-serif;
+      color: var(--muted);
+    }
+    .actions { margin: 16px 0; }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: #1c1917;
+      color: #fafaf9;
+      border-radius: 8px;
+      padding: 16px;
+      min-height: 280px;
+      font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .summary {
+      font: 14px/1.4 ui-sans-serif, system-ui, sans-serif;
+      margin: 0 0 8px;
+    }
+    .error { color: var(--accent); }
+    @media (max-width: 720px) {
+      .split { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Newsroom triage</h1>
+    <p class="lead">Paste one email. The result is a route, a confidence score, and the fields the next agent would need. Nothing is booked and no document is created.</p>
+    <div class="samples" id="samples"></div>
+    <div class="split">
+      <form id="form">
+        <label for="messageId">Message id</label>
+        <input id="messageId" name="messageId" required value="local-manual">
+        <label for="from">From</label>
+        <input id="from" name="from" autocomplete="off">
+        <label for="subject">Subject</label>
+        <input id="subject" name="subject">
+        <label for="body">Body</label>
+        <textarea id="body" name="body"></textarea>
+        <label for="files">PDF attachment</label>
+        <input id="files" name="files" type="file" accept="application/pdf,.pdf" multiple>
+        <p class="file-note" id="fileNote">No PDF attached. Choose a .pdf file. Up to 15 MB.</p>
+        <div class="actions">
+          <button class="primary" type="submit">Triage</button>
+        </div>
+      </form>
+      <section>
+        <p class="summary" id="summary">Waiting for an email.</p>
+        <pre id="output">{}</pre>
+      </section>
+    </div>
+  </main>
+  <script>
+    const form = document.getElementById("form");
+    const output = document.getElementById("output");
+    const summary = document.getElementById("summary");
+    const samples = document.getElementById("samples");
+    const filesInput = document.getElementById("files");
+    const fileNote = document.getElementById("fileNote");
+    let sampleNames = [];
+
+    function chosenFiles() {
+      return [...filesInput.files];
+    }
+
+    function renderFiles() {
+      const names = chosenFiles().map((file) => file.name);
+      if (names.length === 0 && sampleNames.length === 0) {
+        fileNote.textContent = "No PDF attached. Choose a .pdf file. Up to 15 MB.";
+        return;
+      }
+      const parts = [];
+      if (names.length) parts.push("Attached: " + names.join(", "));
+      if (sampleNames.length) parts.push("Named on the email: " + sampleNames.join(", "));
+      fileNote.textContent = parts.join(" ");
+    }
+
+    function emailFromForm() {
+      const uploaded = chosenFiles().map((file) => file.name);
+      const names = [...sampleNames];
+      for (const name of uploaded) {
+        if (!names.includes(name)) names.push(name);
+      }
+      return {
+        messageId: document.getElementById("messageId").value.trim(),
+        from: document.getElementById("from").value.trim(),
+        subject: document.getElementById("subject").value.trim(),
+        body: document.getElementById("body").value,
+        attachmentNames: names
+      };
+    }
+
+    function fill(email) {
+      document.getElementById("messageId").value = email.messageId || "";
+      document.getElementById("from").value = email.from || "";
+      document.getElementById("subject").value = email.subject || "";
+      document.getElementById("body").value = email.body || "";
+      sampleNames = email.attachmentNames || [];
+      filesInput.value = "";
+      renderFiles();
+    }
+
+    function show(payload, isError) {
+      output.textContent = JSON.stringify(payload, null, 2);
+      summary.classList.toggle("error", Boolean(isError));
+      if (isError) {
+        summary.textContent = payload.detail || "Triage failed.";
+        return;
+      }
+      summary.textContent = payload.disposition + " → " + payload.route + " (" + payload.confidence + ", " + payload.engine + ")";
+    }
+
+    filesInput.addEventListener("change", () => {
+      const wrong = chosenFiles().filter((file) => !file.name.toLowerCase().endsWith(".pdf"));
+      if (wrong.length) {
+        filesInput.value = "";
+        summary.textContent = "Only a PDF can be attached.";
+        summary.classList.add("error");
+        renderFiles();
+        return;
+      }
+      summary.classList.remove("error");
+      summary.textContent = chosenFiles().length ? "PDF ready to send." : "Waiting for an email.";
+      renderFiles();
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      summary.classList.remove("error");
+      summary.textContent = "Reading the email…";
+      const data = new FormData();
+      data.append("email", JSON.stringify(emailFromForm()));
+      for (const file of chosenFiles()) data.append("files", file);
+      const response = await fetch("/triage", { method: "POST", body: data });
+      const payload = await response.json();
+      show(payload, !response.ok);
+    });
+
+    async function loadSamples() {
+      const listed = await fetch("/fixtures").then((response) => response.json());
+      for (const name of listed.fixtures) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = name;
+        button.addEventListener("click", async () => {
+          const email = await fetch("/fixtures/" + name).then((response) => response.json());
+          fill(email);
+          form.requestSubmit();
+        });
+        samples.appendChild(button);
+      }
+    }
+
+    loadSamples();
+  </script>
+</body>
+</html>
