@@ -33,6 +33,6 @@ services:
       HOUSE_STYLE_PATH: /app/house-style.md
       GMAIL_FROM: ${GMAIL_FROM:-markcwm@sph.com.sg}
       GMAIL_QUERY: ${GMAIL_QUERY:-in:inbox newer_than:2d}
-      JOB_INTERVAL_SECONDS: ${JOB_INTERVAL_SECONDS:-1800}
+      JOB_INTERVAL_SECONDS: ${JOB_INTERVAL_SECONDS:-30}
     volumes:
       - ./data:/app/data

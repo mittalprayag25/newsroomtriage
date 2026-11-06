@@ -27,6 +27,8 @@ class Memory:
             )
             """
         )
+        self._db.execute("CREATE TABLE IF NOT EXISTS gmail_checkpoints (account TEXT PRIMARY KEY, history_id TEXT NOT NULL)")
+        self._db.execute("CREATE TABLE IF NOT EXISTS doc_replies (message_id TEXT PRIMARY KEY, doc_link TEXT NOT NULL, state TEXT NOT NULL, sent_id TEXT)")
         self._db.commit()
 
     def get(self, message_id: str) -> dict | None:
@@ -57,6 +59,30 @@ class Memory:
             )
         except sqlite3.IntegrityError as exc:
             raise MemoryError(f"{message_id} is already recorded.") from exc
+        if route == "article" and disposition == "dispatch" and doc_link:
+            self._db.execute("INSERT OR IGNORE INTO doc_replies VALUES (?, ?, 'pending', NULL)", (message_id, doc_link))
+        self._db.commit()
+
+    def queue_doc_reply(self, message_id: str) -> None:
+        row = self.get(message_id)
+        if not row or row["route"] != "article" or not row["doc_link"]:
+            raise MemoryError("No saved article document for this message.")
+        self._db.execute("INSERT OR IGNORE INTO doc_replies VALUES (?, ?, 'pending', NULL)", (message_id, row["doc_link"]))
+        self._db.commit()
+
+    def pending_replies(self) -> list[dict]:
+        return [dict(row) for row in self._db.execute("SELECT * FROM doc_replies WHERE state='pending'")]
+
+    def reply_state(self, message_id: str, state: str, sent_id: str | None = None) -> None:
+        self._db.execute("UPDATE doc_replies SET state=?, sent_id=? WHERE message_id=?", (state, sent_id, message_id))
+        self._db.commit()
+
+    def checkpoint(self, account: str) -> str | None:
+        row = self._db.execute("SELECT history_id FROM gmail_checkpoints WHERE account=?", (account,)).fetchone()
+        return row[0] if row else None
+
+    def set_checkpoint(self, account: str, history_id: str) -> None:
+        self._db.execute("INSERT INTO gmail_checkpoints VALUES (?,?) ON CONFLICT(account) DO UPDATE SET history_id=excluded.history_id", (account, history_id))
         self._db.commit()
 
     def close(self) -> None:

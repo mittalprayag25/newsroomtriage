@@ -404,8 +404,8 @@ class JobTests(unittest.TestCase):
         doc_call = next(call for call in desk.calls if call[0] == "create_document")
         self.assertIn("Tengah launch note", doc_call[2])
         event_call = next(call for call in desk.calls if call[0] == "create_event")
-        self.assertEqual(event_call[1]["notificationLevel"], "NONE")
-        self.assertNotIn("attendees", event_call[1])
+        self.assertEqual(event_call[1]["notificationLevel"], "ALL")
+        self.assertEqual(event_call[1]["attendees"], [{"email": interview["from"]}])
         self.assertEqual(event_call[1]["startTime"], "2026-11-07T15:00:00+08:00")
         self.assertEqual(len([call for call in desk.calls if call[0] == "create_event"]), 1)
 
@@ -463,7 +463,7 @@ class JobTests(unittest.TestCase):
             "in:inbox newer_than:2d from:markcwm@sph.com.sg",
         )
 
-    def test_calendar_event_does_not_invite_guests(self) -> None:
+    def test_calendar_event_invites_sender(self) -> None:
         email = email_from_gmail(
             {
                 "id": "local-interview",
@@ -474,8 +474,8 @@ class JobTests(unittest.TestCase):
         )
         decision = run_triage(email, Settings(mode="heuristic"))
         arguments = event_arguments(email, decision)
-        self.assertEqual(arguments["notificationLevel"], "NONE")
-        self.assertNotIn("attendees", arguments)
+        self.assertEqual(arguments["notificationLevel"], "ALL")
+        self.assertEqual(arguments["attendees"], [{"email": "press@mnd.gov.sg"}])
         self.assertEqual(arguments["location"], "Parliament House")
 
 

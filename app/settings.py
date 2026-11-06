@@ -24,7 +24,7 @@ class Settings(BaseModel):
     google_token_path: str = "data/google-token.json"
     memory_path: str = "data/newsroom.sqlite"
     house_style_path: str = "house-style.md"
-    job_interval_seconds: int = 1800
+    job_interval_seconds: int = 30
     gmail_from: str = DEFAULT_GMAIL_FROM
     gmail_query: str = "in:inbox newer_than:2d"
     oauth_redirect_uri: str = "http://127.0.0.1:8765/oauth/callback"
@@ -49,7 +49,7 @@ class Settings(BaseModel):
             or "data/newsroom.sqlite",
             house_style_path=os.environ.get("HOUSE_STYLE_PATH", "house-style.md").strip()
             or "house-style.md",
-            job_interval_seconds=_positive_int(os.environ.get("JOB_INTERVAL_SECONDS", "1800"), 1800),
+            job_interval_seconds=_positive_int(os.environ.get("JOB_INTERVAL_SECONDS", "30"), 30),
             gmail_from=os.environ.get("GMAIL_FROM", DEFAULT_GMAIL_FROM).strip() or DEFAULT_GMAIL_FROM,
             gmail_query=os.environ.get("GMAIL_QUERY", "in:inbox newer_than:2d").strip()
             or "in:inbox newer_than:2d",

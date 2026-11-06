@@ -198,6 +198,9 @@ def email_from_gmail(message: dict) -> InboundEmail:
         {
             "messageId": str(message.get("id") or "")[:200],
             "from": sender[:320],
+            "to": message.get("to") or [],
+            "cc": message.get("cc") or [],
+            "mailboxAddress": message.get("mailboxAddress") or "",
             "subject": subject[:500],
             "body": body[:20000],
             "attachmentNames": names[:20],

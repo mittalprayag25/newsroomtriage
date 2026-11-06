@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from email.utils import getaddresses
+import re
 from pathlib import Path
 
 from app.attachments import AttachmentError, extract_text
@@ -55,13 +57,35 @@ def event_arguments(email: InboundEmail, decision: TriageOutput) -> dict:
         "endTime": end,
         "timeZone": "Asia/Singapore",
         "calendarId": "primary",
-        "notificationLevel": "NONE",
+        "notificationLevel": "ALL",
         "description": f"Gmail message {email.message_id}\nFrom: {email.from_address}",
     }
+    attendees = calendar_attendees(email)
+    if attendees:
+        arguments["attendees"] = attendees
     location = fields.get("location")
     if isinstance(location, str) and location.strip():
         arguments["location"] = location.strip()[:300]
     return arguments
+
+
+def calendar_attendees(email: InboundEmail) -> list[dict]:
+    """Use actual From/To/CC headers, with no guests inferred by the model."""
+    seen = {email.mailbox_address.strip().casefold()}
+    attendees = []
+    headers = [email.from_address, *email.to_addresses, *email.cc_addresses]
+    for display_name, address in getaddresses(headers):
+        if not re.fullmatch(r"[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+", address):
+            continue
+        key = address.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        attendee = {"email": address}
+        if display_name:
+            attendee["displayName"] = display_name
+        attendees.append(attendee)
+    return attendees
 
 
 def collect_attachment_text(message: dict, workspace: GoogleWorkspace) -> str:
@@ -75,11 +99,16 @@ def collect_attachment_text(message: dict, workspace: GoogleWorkspace) -> str:
         lower = filename.lower()
         if not lower.endswith((".pdf", ".docx", ".doc")):
             continue
+        inline = item.get("data")
         attachment_id = item.get("id")
-        if not isinstance(attachment_id, str) or not attachment_id:
+        if not inline and (not isinstance(attachment_id, str) or not attachment_id):
             parts.append(f"{filename}: no attachment id was returned.")
             continue
-        data = workspace.attachment_bytes(message_id, attachment_id)
+        if inline:
+            import base64
+            data = base64.urlsafe_b64decode(inline + "=" * (-len(inline) % 4))
+        else:
+            data = workspace.attachment_bytes(message_id, attachment_id)
         try:
             text = extract_text(filename, data)
         except AttachmentError as exc:

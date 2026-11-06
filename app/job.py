@@ -7,21 +7,39 @@ from pathlib import Path
 import httpx
 
 from app.auth import GoogleAuth
-from app.mcp_client import StreamableHttpMcp
+from app.google_rest import GoogleRestWorkspace
 from app.memory import Memory
 from app.paths import repo_path
 from app.settings import Settings
 from app.specialists import handle_message
 from app.triage import run_triage
-from app.workspace import (
-    CALENDAR_MCP_URL,
-    DOCS_MCP_URL,
-    DRIVE_MCP_URL,
-    GMAIL_MCP_URL,
-    GoogleWorkspace,
-    email_from_gmail,
-    is_from_address,
-)
+from app.workspace import GoogleWorkspace, email_from_gmail, is_from_address
+
+
+def send_pending_replies(settings, workspace, memory, report, only_message_id=None):
+    if not hasattr(workspace, "send_doc_reply"):
+        return
+    for reply in memory.pending_replies():
+        message_id = reply["message_id"]
+        if only_message_id and message_id != only_message_id:
+            continue
+        sending = False
+        try:
+            message = workspace.get_message(message_id)
+            if settings.gmail_from and not is_from_address(message.get("sender", ""), settings.gmail_from):
+                raise ValueError("Reply sender does not match GMAIL_FROM.")
+            memory.reply_state(message_id, "sending")
+            sending = True
+            sent = workspace.send_doc_reply(message, reply["doc_link"])
+            memory.reply_state(message_id, "sent", sent["id"])
+            report.setdefault("replies", []).append({"messageId": message_id, "sentMessageId": sent["id"]})
+        except Exception as exc:
+            # A definitive HTTP rejection can be retried. Timeouts or a crash
+            # after submitting a send require checking Sent before retrying.
+            cause = exc.__cause__
+            if not sending or (isinstance(cause, httpx.HTTPStatusError) and cause.response.status_code < 500):
+                memory.reply_state(message_id, "pending")
+            report["failures"].append(f"{message_id}: document reply failed: {exc}")
 
 
 def run_once(settings: Settings, workspace: GoogleWorkspace, memory: Memory, style_path: Path) -> dict:
@@ -79,6 +97,9 @@ def run_once(settings: Settings, workspace: GoogleWorkspace, memory: Memory, sty
                 "docLink": result_doc_link,
             }
         )
+    send_pending_replies(settings, workspace, memory, report)
+    if not report["failures"] and hasattr(workspace, "commit_poll"):
+        workspace.commit_poll()
     return report
 
 
@@ -93,16 +114,8 @@ def open_workspace(settings: Settings) -> tuple[GoogleWorkspace, GoogleAuth, htt
     def token() -> str:
         return auth.access_token()
 
-    workspace = GoogleWorkspace(
-        gmail=StreamableHttpMcp(GMAIL_MCP_URL, token, http),
-        calendar=StreamableHttpMcp(CALENDAR_MCP_URL, token, http),
-        drive=StreamableHttpMcp(DRIVE_MCP_URL, token, http),
-        docs=StreamableHttpMcp(DOCS_MCP_URL, token, http),
-        token_provider=token,
-        http=http,
-        query=settings.search_query(),
-        sender=settings.gmail_from,
-    )
+    memory = Memory(repo_path(settings.memory_path))
+    workspace = GoogleRestWorkspace(token, http, memory, sender=settings.gmail_from)
     return workspace, auth, http
 
 
@@ -113,8 +126,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--loop",
         action="store_true",
-        help="Wait JOB_INTERVAL_SECONDS after each pass. The default wait is 30 minutes.",
+        help="Wait JOB_INTERVAL_SECONDS after each pass. The default wait is 30 seconds.",
     )
+    parser.add_argument("--reply-doc", metavar="MESSAGE_ID", help="Reply with a previously saved article document; does not scan the inbox")
     args = parser.parse_args(argv)
     settings = Settings.from_env()
     style_path = repo_path(settings.house_style_path)
@@ -126,6 +140,12 @@ def main(argv: list[str] | None = None) -> int:
         memory.close()
         return 1
     try:
+        if args.reply_doc:
+            memory.queue_doc_reply(args.reply_doc)
+            report = {"failures": []}
+            send_pending_replies(settings, workspace, memory, report, only_message_id=args.reply_doc)
+            print(json.dumps(report, indent=2))
+            return 1 if report["failures"] else 0
         while True:
             try:
                 report = run_once(settings, workspace, memory, style_path)
@@ -139,6 +159,7 @@ def main(argv: list[str] | None = None) -> int:
             time.sleep(settings.job_interval_seconds)
     finally:
         workspace.close()
+        workspace.memory.close()
         auth.close()
         http.close()
         memory.close()

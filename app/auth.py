@@ -11,10 +11,11 @@ import httpx
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 
-# Scopes the half-hour job needs. calendar.events is the write scope;
+# Scopes the 30-second job needs. calendar.events is the write scope;
 # the readonly calendar scopes on the MCP setup page cannot create an event.
 SCOPES = (
     "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.send",
     "https://www.googleapis.com/auth/calendar.events",
     "https://www.googleapis.com/auth/documents",
     "https://www.googleapis.com/auth/drive.file",
@@ -75,7 +76,7 @@ class GoogleAuth:
         if not client_id or not client_secret:
             raise AuthError(
                 "Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET in .env or the environment. "
-                "The OAuth client has to be marked for an AI-powered agent."
+                "Use a standard Google Web application OAuth client."
             )
         self.client_id = client_id
         self.client_secret = client_secret
@@ -121,7 +122,7 @@ class GoogleAuth:
         if not self.token_path.is_file():
             raise AuthError(
                 f"No refresh token at {self.token_path}. Run python -m app.auth once, "
-                "then the half-hour job can stay signed in."
+                "then the 30-second job can stay signed in."
             )
         try:
             payload = json.loads(self.token_path.read_text(encoding="utf-8"))
@@ -152,7 +153,7 @@ def login(client_id: str, client_secret: str, redirect_uri: str, token_path: Pat
         raise AuthError(
             "Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET in .env or the environment. "
             "In Google Auth Platform, create a Web application client, add this redirect URI, "
-            "and select Use this client for an AI-powered agent."
+            "then run sign-in again."
         )
     _check_redirect(redirect_uri)
     state = secrets.token_urlsafe(24)

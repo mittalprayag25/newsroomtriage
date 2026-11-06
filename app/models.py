@@ -14,6 +14,9 @@ class InboundEmail(BaseModel):
 
     message_id: str = Field(alias="messageId", min_length=1, max_length=200)
     from_address: str = Field(default="", alias="from", max_length=320)
+    to_addresses: list[str] = Field(default_factory=list, alias="to")
+    cc_addresses: list[str] = Field(default_factory=list, alias="cc")
+    mailbox_address: str = Field(default="", alias="mailboxAddress")
     subject: str = Field(default="", max_length=500)
     body: str = Field(default="", max_length=20000)
     attachment_names: list[str] = Field(default_factory=list, alias="attachmentNames")
