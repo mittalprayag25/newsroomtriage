@@ -7,7 +7,8 @@ services:
       TRIAGE_MODE: ${TRIAGE_MODE:-auto}
       TRIAGE_BASE_URL: ${TRIAGE_BASE_URL:-}
       TRIAGE_API_KEY: ${TRIAGE_API_KEY:-}
-      TRIAGE_MODEL: ${TRIAGE_MODEL:-gpt-4o-mini}
+      TRIAGE_MODEL: "${TRIAGE_MODEL:-aisingapore/Qwen-SEA-LION-v4.5-27B-IT}"
+      TRIAGE_TIMEOUT_SECONDS: ${TRIAGE_TIMEOUT_SECONDS:-90}
       FIXTURES_DIR: /app/fixtures
       STATIC_DIR: /app/static
     extra_hosts:

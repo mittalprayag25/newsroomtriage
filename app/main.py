@@ -26,12 +26,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/health")
     def health() -> dict:
         current: Settings = app.state.settings
-        return {
+        payload = {
             "status": "ok",
             "engine": current.engine(),
             "mode": current.mode,
             "threshold": REVIEW_THRESHOLD,
         }
+        if current.engine() == "llm":
+            payload["model"] = current.model
+        return payload
 
     @app.get("/fixtures")
     def fixtures() -> dict:

@@ -131,6 +131,7 @@
     const filesInput = document.getElementById("files");
     const fileNote = document.getElementById("fileNote");
     let sampleNames = [];
+    let engineLabel = "heuristic";
 
     function chosenFiles() {
       return [...filesInput.files];
@@ -180,7 +181,7 @@
         summary.textContent = payload.detail || "Triage failed.";
         return;
       }
-      summary.textContent = payload.disposition + " → " + payload.route + " (" + payload.confidence + ", " + payload.engine + ")";
+      summary.textContent = payload.disposition + " → " + payload.route + " (" + payload.confidence + ", " + engineLabel + ")";
     }
 
     filesInput.addEventListener("change", () => {
@@ -224,6 +225,14 @@
       }
     }
 
+    async function loadHealth() {
+      const health = await fetch("/health").then((response) => response.json());
+      engineLabel = health.engine === "llm" && health.model
+        ? health.engine + ", " + health.model
+        : health.engine;
+    }
+
+    loadHealth();
     loadSamples();
   </script>
 </body>

@@ -23,15 +23,7 @@ The default image is offline. Decisions come from the rules in `app/heuristic.py
 
 ## Optional model
 
-Copy `.env.example` to `.env` and set an OpenAI-compatible endpoint. `TRIAGE_MODE=auto` uses the model only when `TRIAGE_BASE_URL` or `TRIAGE_API_KEY` is set.
-
-Ollama on the host:
-
-```bash
-TRIAGE_BASE_URL=http://host.docker.internal:11434/v1
-TRIAGE_MODEL=llama3.2
-TRIAGE_API_KEY=ollama
-```
+Copy `.env.example` to `.env` and set a SEA-LION trial key. Triage calls `aisingapore/Qwen-SEA-LION-v4.5-27B-IT` at `https://api.sea-lion.ai/v1`. `TRIAGE_MODE=llm` keeps a failed model call visible. Set `TRIAGE_MODE=heuristic` to use the phrase rules instead.
 
 ## Email JSON
 
