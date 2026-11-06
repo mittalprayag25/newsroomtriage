@@ -20,7 +20,7 @@ class InboundEmail(BaseModel):
 
 
 class TriageOutput(BaseModel):
-    """The only result of this build. Specialists are not called."""
+    """Route decision for one email. The web service stops here. The job acts on it."""
 
     model_config = ConfigDict(populate_by_name=True)
 

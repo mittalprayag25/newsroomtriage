@@ -11,6 +11,7 @@ COPY pyproject.toml ./
 COPY app ./app
 COPY fixtures ./fixtures
 COPY static ./static
+COPY house-style.md ./house-style.md
 
 RUN pip install --no-cache-dir . \
     && useradd --create-home --uid 10001 appuser \

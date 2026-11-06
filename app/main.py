@@ -18,7 +18,7 @@ PDF_MAGIC = b"%PDF"
 def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(
         title="Straits Times triage",
-        version="0.1.0",
+        version="0.2.0",
         summary="Classifies one email into calendar, article, enquiry, or ignore.",
     )
     app.state.settings = settings or Settings.from_env()

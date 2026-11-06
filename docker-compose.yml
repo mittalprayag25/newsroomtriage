@@ -13,3 +13,25 @@ services:
       STATIC_DIR: /app/static
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+  job:
+    profiles: ["job"]
+    build: .
+    command: ["python", "-m", "app.job", "--loop"]
+    restart: unless-stopped
+    environment:
+      TRIAGE_MODE: ${TRIAGE_MODE:-auto}
+      TRIAGE_BASE_URL: ${TRIAGE_BASE_URL:-}
+      TRIAGE_API_KEY: ${TRIAGE_API_KEY:-}
+      TRIAGE_MODEL: "${TRIAGE_MODEL:-aisingapore/Qwen-SEA-LION-v4.5-27B-IT}"
+      TRIAGE_TIMEOUT_SECONDS: ${TRIAGE_TIMEOUT_SECONDS:-90}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI:-http://127.0.0.1:8765/oauth/callback}
+      GOOGLE_TOKEN_PATH: /app/data/google-token.json
+      NEWSROOM_DB: /app/data/newsroom.sqlite
+      HOUSE_STYLE_PATH: /app/house-style.md
+      GMAIL_QUERY: ${GMAIL_QUERY:-in:inbox newer_than:2d}
+      JOB_INTERVAL_SECONDS: ${JOB_INTERVAL_SECONDS:-1800}
+    volumes:
+      - ./data:/app/data
